@@ -1,17 +1,20 @@
 import cv2
-from numpy import hypot, mean
+from numpy import hypot
 
-BG = cv2.createBackgroundSubtractorMOG2(history=500, varThreshold=50, detectShadows=True)
+BG = cv2.createBackgroundSubtractorMOG2(history=300, varThreshold=25, detectShadows=True)
 KERNEL = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
 
 
 # Создание маски для определения контуров и её зачистка
 def create_mask(frame_for_mask):
-    mask = BG.apply(frame_for_mask)
-    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, KERNEL)
+    mask = BG.apply(frame_for_mask, learningRate=0.004)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, KERNEL)
     mask = cv2.erode(mask, KERNEL, iterations=1)
-    mask = cv2.dilate(mask, KERNEL, iterations=3)
-    cv2.imshow("Mask", mask)
+    mask = cv2.dilate(mask, KERNEL, iterations=2)
+
+    # Убираем из маски область, где едет поезд
+    mask[0:140, 0:1280] = 0
+    cv2.imshow("mask", mask)
     return mask
 
 
@@ -35,7 +38,6 @@ def put_text(frame_for_edit, k, s):
 
 # Чтение видео
 cap = cv2.VideoCapture('video.mp4')
-
 
 prev_centroids = []
 
@@ -68,7 +70,7 @@ while True:
 
         cur_centroids.append(get_centroid(x, y, w, h))
 
-        frame = cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+        frame = cv2.rectangle(frame, (x, y), (x + w, y + h ), (0, 255, 0), 2)
 
     # Расчет скорости
     speeds = []
@@ -95,7 +97,10 @@ while True:
     prev_centroids = cur_centroids
 
     # Вывод информации о количестве движущихся машин в кадре и их суммарной средней скорости
-    cv2.imshow("Video", put_text(frame, len(large_contours),  int(avg)))
+    cv2.imshow("Video", put_text(frame, len(speeds), int(avg)))
+
+    if cv2.waitKey(27) & 0xFF == ord('q'):
+        break
 
 
 cap.release()
